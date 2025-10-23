@@ -4,12 +4,12 @@ Automated email scanning and browser automation tool for processing emails from 
 
 ## Features
 
-- =ç **Gmail Integration** - Scan Gmail inbox for emails matching your criteria
+- =ï¿½ **Gmail Integration** - Scan Gmail inbox for emails matching your criteria
 - < **Browser Automation** - Automatically open links in Chrome browser
-- =± **Smart Element Clicking** - Click buttons/elements on pages by text matching
+- =ï¿½ **Smart Element Clicking** - Click buttons/elements on pages by text matching
 - = **Platform Login** - Automated login to Smartcat (extensible for other platforms)
-- =Ë **Multi-Profile Support** - Create and manage multiple automation profiles
-- =¾ **Local Configuration** - All data stored locally, never sent to external servers
+- =ï¿½ **Multi-Profile Support** - Create and manage multiple automation profiles
+- =ï¿½ **Local Configuration** - All data stored locally, never sent to external servers
 
 ## Quick Start
 
@@ -51,6 +51,10 @@ Each profile stores:
 - Optional: Element text to click
 
 Profiles are saved locally in `~/.auto_accept/configs/` with restricted permissions.
+
+## Security
+
+All credentials are encrypted using AES-128 encryption (Fernet) and stored locally with restricted file permissions. URLs are validated to prevent malicious navigation and SSRF attacks. Password input is masked during entry to prevent terminal history leakage.
 
 ## Supported Platforms
 
