@@ -315,14 +315,62 @@ class GmailHandler:
                     seen_urls.add(url)
                     links_with_text.append((url, link_text))
 
-        # If no HTML links found, fall back to plain URL extraction
+        # If no HTML links found, try plain text extraction with context
         if not links_with_text:
-            urls = self.extract_links(body)
-            for url in urls:
-                if url not in seen_urls:
-                    seen_urls.add(url)
-                    # For plain URLs without context, use empty text
-                    links_with_text.append((url, ""))
+            links_with_text = self._extract_plain_text_links(cleaned_body, seen_urls)
+
+        return links_with_text
+
+    def _extract_plain_text_links(self, body: str, seen_urls: set) -> list[tuple[str, str]]:
+        """Extract links from plain text email with associated text.
+
+        Looks for text appearing near URLs (e.g., "Go to task" followed by <URL>).
+
+        Args:
+            body: Email body text
+            seen_urls: Set of already seen URLs to avoid duplicates
+
+        Returns:
+            List of (url, link_text) tuples
+        """
+        links_with_text: list[tuple[str, str]] = []
+
+        # Split body into lines for context analysis
+        lines = body.split("\n")
+
+        # Pattern to find URLs
+        url_pattern = r"https?://[^\s<>\"\';,\)]*[^\s<>\"\';,\).]"
+
+        for i, line in enumerate(lines):
+            # Check if this line contains a URL
+            url_matches = re.finditer(url_pattern, line)
+
+            for url_match in url_matches:
+                url = url_match.group(0).strip()
+
+                # Remove trailing characters that might have been captured
+                while url and url[-1] in ">'))\"';,.":
+                    url = url[:-1]
+
+                # Validate URL
+                if not url or not url.startswith(("http://", "https://")):
+                    continue
+
+                if url in seen_urls:
+                    continue
+
+                # Look for text in previous lines (within last 3 lines)
+                link_text = ""
+                for prev_idx in range(max(0, i - 3), i):
+                    prev_line = lines[prev_idx].strip()
+                    # Skip empty lines, lines with only URLs, and lines that are
+                    # clearly headers/noise
+                    if prev_line and not prev_line.startswith("http") and len(prev_line) < 100:
+                        # Take the last non-empty line as potential link text
+                        link_text = prev_line
+
+                seen_urls.add(url)
+                links_with_text.append((url, link_text))
 
         return links_with_text
 
