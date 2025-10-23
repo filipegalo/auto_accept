@@ -21,6 +21,7 @@ class EmailScanner:
         platform_email: str,
         platform_password: str,
         subject: str,
+        link_filter_text: Optional[str] = None,
         link_text: Optional[str] = None,
         scan_interval: int = DEFAULT_SCAN_INTERVAL,
     ) -> None:
@@ -33,6 +34,7 @@ class EmailScanner:
             platform_email: Email for platform login
             platform_password: Password for platform login
             subject: Subject text to search for (substring match)
+            link_filter_text: Filter links by their text (e.g., 'Go to task') - optional
             link_text: Text of button/element to click in opened links (optional)
             scan_interval: Interval between scans in seconds (default: 5)
 
@@ -45,6 +47,7 @@ class EmailScanner:
         self.platform_email = platform_email
         self.platform_password = platform_password
         self.subject = subject
+        self.link_filter_text = link_filter_text
         self.link_text = link_text
         self.scan_interval = scan_interval
         self.gmail = GmailHandler(email, password)
@@ -56,10 +59,14 @@ class EmailScanner:
     def _initialize_browser(self) -> None:
         """Initialize browser automation.
 
-        Prints warning if link_text is not provided.
+        Prints info about configured link filtering and button clicking.
         """
         try:
             self.browser = BrowserAutomation()
+            if self.link_filter_text:
+                ui.print_info(
+                    f"Link filtering enabled: Will only open links with text '{self.link_filter_text}'"
+                )
             if not self.link_text:
                 ui.print_info("No button text configured - will only open links without clicking")
         except RuntimeError as e:
@@ -70,23 +77,65 @@ class EmailScanner:
     def _process_email(self, message: dict) -> None:
         """Process email by opening links and clicking buttons.
 
+        Filters links by configured text if link_filter_text is set.
+
         Args:
             message: Email message dictionary
         """
         self._print_processed_status(message)
 
-        # Extract links from email body
-        links = self.gmail.extract_links(message["body"])
+        # Extract links with their associated text from email body
+        links_with_text = self.gmail.extract_links_with_text(message["body"])
 
-        if not links:
+        if not links_with_text:
             ui.print_warning("No links found in email body", indent=1)
             return
 
-        ui.print_success(f"Found {len(links)} link(s)", indent=1)
+        # Filter links if link_filter_text is configured
+        filtered_links = self._filter_links(links_with_text)
+
+        if not filtered_links:
+            if self.link_filter_text:
+                ui.print_warning(
+                    f"No links found matching filter text '{self.link_filter_text}'", indent=1
+                )
+            else:
+                ui.print_warning("No links available after filtering", indent=1)
+            return
+
+        ui.print_success(f"Found {len(filtered_links)} link(s)", indent=1)
 
         # Open each link and click button if configured
-        for link in links:
+        for link in filtered_links:
             self._open_and_process_link(link)
+
+    def _filter_links(self, links_with_text: list[tuple[str, str]]) -> list[str]:
+        """Filter links based on configured link_filter_text.
+
+        If link_filter_text is not configured, returns all links.
+        Otherwise, returns only links whose text contains the filter text (case-insensitive).
+
+        Args:
+            links_with_text: List of (url, link_text) tuples
+
+        Returns:
+            List of filtered URLs
+        """
+        # If no filter is configured, return all links
+        if not self.link_filter_text:
+            return [url for url, _ in links_with_text]
+
+        # Filter links by text match
+        filtered = []
+        filter_text_lower = self.link_filter_text.lower()
+
+        for url, link_text in links_with_text:
+            # Check if link_text matches the filter (case-insensitive substring match)
+            if link_text and filter_text_lower in link_text.lower():
+                filtered.append(url)
+                ui.print_info(f"Link matched filter: '{link_text}' → {url}", indent=1)
+
+        return filtered
 
     def _open_and_process_link(self, link: str) -> None:
         """Open a link and click element if configured.
