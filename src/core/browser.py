@@ -1,7 +1,9 @@
 """Browser automation module for opening links and clicking elements."""
 
+import json
 import time
 from typing import Optional
+from urllib.parse import urlparse
 
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
@@ -42,7 +44,6 @@ class BrowserAutomation:
 
             # Additional options for stability
             options.add_argument("--start-maximized")
-            options.add_argument("--no-sandbox")
             options.add_argument("--disable-dev-shm-usage")
             options.add_argument("--disable-blink-features=AutomationControlled")
 
@@ -52,6 +53,64 @@ class BrowserAutomation:
             ui.print_success("Browser launched successfully")
         except Exception as e:
             raise RuntimeError(f"Failed to initialize browser: {e}") from e
+
+    def _is_safe_url(self, url: str) -> bool:
+        """Validate URL is safe to open.
+
+        Blocks:
+        - Non-HTTP(S) protocols (javascript:, data:, file:, etc.)
+        - localhost and private IP addresses (SSRF prevention)
+        - URLs without proper scheme
+
+        Args:
+            url: URL to validate
+
+        Returns:
+            True if URL is safe, False otherwise
+        """
+        try:
+            parsed = urlparse(url)
+
+            # Only allow http and https
+            if parsed.scheme not in ("http", "https"):
+                return False
+
+            # Block localhost and private IP ranges (SSRF prevention)
+            if parsed.hostname:
+                hostname_lower = parsed.hostname.lower()
+                # Block localhost
+                if hostname_lower in ("localhost", "127.0.0.1", "::1"):
+                    return False
+                # Block private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+                if hostname_lower.startswith(
+                    (
+                        "10.",
+                        "172.16.",
+                        "172.17.",
+                        "172.18.",
+                        "172.19.",
+                        "172.20.",
+                        "172.21.",
+                        "172.22.",
+                        "172.23.",
+                        "172.24.",
+                        "172.25.",
+                        "172.26.",
+                        "172.27.",
+                        "172.28.",
+                        "172.29.",
+                        "172.30.",
+                        "172.31.",
+                        "192.168.",
+                        "0.0.0.0",
+                    )
+                ):
+                    return False
+
+            return True
+        except Exception:
+            # If URL parsing fails, block it
+            return False
 
     def open_url(self, url: str, timeout: int = 10) -> bool:
         """Open a URL in the browser.
@@ -65,6 +124,11 @@ class BrowserAutomation:
         """
         if not self.driver:
             print("  ✗ Browser not initialized")
+            return False
+
+        # Validate URL for security
+        if not self._is_safe_url(url):
+            print(f"  ✗ Blocked unsafe URL: {url}")
             return False
 
         try:
@@ -129,8 +193,9 @@ class BrowserAutomation:
         """
         try:
             # Step 1: Find the element with text matching
+            # Use json.dumps() to safely escape user input and prevent JavaScript injection
             js_find_and_click = f"""
-            var searchText = '{text}';
+            var searchText = {json.dumps(text)};
 
             // Find button/link that contains this text
             var buttons = document.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"]');
@@ -274,8 +339,9 @@ class BrowserAutomation:
             return
 
         try:
+            # Use json.dumps() to safely escape user input and prevent JavaScript injection
             js_debug = f"""
-            var searchText = '{text}';
+            var searchText = {json.dumps(text)};
             var results = [];
             var allElements = document.querySelectorAll('*');
 
