@@ -1,4 +1,10 @@
-"""Main entry point for auto-accept email automation application."""
+"""Main entry point for auto-accept email automation application.
+
+Features:
+- Real-time Gmail inbox monitoring
+- Automated browser link opening
+- Smart element clicking with Vue.js support
+"""
 
 from src.config import (
     CONFIG_KEY_EMAIL,
