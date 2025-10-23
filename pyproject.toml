@@ -1,6 +1,6 @@
 [project]
 name = "auto-accept"
-version = "1.1.0"
+version = "1.2.0"
 description = "Automated email scanning and browser automation tool with Smartcat login support"
 requires-python = ">=3.11"
 authors = [{name = "Auto-Accept Contributors"}]
