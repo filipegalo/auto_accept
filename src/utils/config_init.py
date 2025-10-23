@@ -12,6 +12,7 @@ from ..config import (
     CONFIG_FILE_PERMISSIONS,
     CONFIG_KEY_EMAIL,
     CONFIG_KEY_EMAIL_SUBJECT,
+    CONFIG_KEY_LINK_FILTER_TEXT,
     CONFIG_KEY_LINK_TEXT,
     CONFIG_KEY_PASSWORD,
     CONFIG_KEY_PLATFORM,
@@ -196,13 +197,31 @@ class ConfigManager:
         return platform_email, platform_password
 
     @staticmethod
-    def _prompt_email_settings() -> tuple[str, str]:
+    def _prompt_email_settings() -> tuple[str, str, str]:
         """Prompt for email automation settings."""
         ui.print_subsection("Email Automation Settings")
         subject = input("Enter the subject of the email to look for: ").strip()
         if not subject:
             raise ValueError("Subject cannot be empty")
         ui.print_success(f"Subject configured: '{subject}'")
+
+        ui.print_subsection("Link Filtering (Optional)")
+        filter_option = (
+            input("Do you want to filter which links to open? (yes/no): ").strip().lower()
+        )
+        link_filter_text = ""
+        if filter_option == "yes":
+            link_filter_text = input(
+                "Enter the text of the link to open (e.g., 'Go to task', 'View details'): "
+            ).strip()
+            if not link_filter_text:
+                ui.print_warning("No link text specified - will open all links")
+            else:
+                ui.print_success(
+                    f"Link filter configured: Only links with text '{link_filter_text}' will be opened"
+                )
+        else:
+            ui.print_info("Link filtering disabled - all links will be opened")
 
         ui.print_subsection("Button/Element Clicking (Optional)")
         click_option = (
@@ -219,7 +238,7 @@ class ConfigManager:
                 ui.print_success(f"Button text configured: '{link_text}'")
         else:
             ui.print_info("Button clicking disabled")
-        return subject, link_text
+        return subject, link_filter_text, link_text
 
     @staticmethod
     def prompt_for_credentials() -> dict:
@@ -232,7 +251,7 @@ class ConfigManager:
         email, password = ConfigManager._prompt_gmail_credentials()
         platform = ConfigManager._prompt_platform_selection()
         platform_email, platform_password = ConfigManager._prompt_platform_credentials(platform)
-        subject, link_text = ConfigManager._prompt_email_settings()
+        subject, link_filter_text, link_text = ConfigManager._prompt_email_settings()
 
         config = {
             CONFIG_KEY_EMAIL: email,
@@ -242,6 +261,8 @@ class ConfigManager:
             CONFIG_KEY_PLATFORM_PASSWORD: platform_password,
             CONFIG_KEY_EMAIL_SUBJECT: subject,
         }
+        if link_filter_text:
+            config[CONFIG_KEY_LINK_FILTER_TEXT] = link_filter_text
         if link_text:
             config[CONFIG_KEY_LINK_TEXT] = link_text
         return config

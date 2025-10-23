@@ -11,6 +11,7 @@ Features:
 from src.config import (
     CONFIG_KEY_EMAIL,
     CONFIG_KEY_EMAIL_SUBJECT,
+    CONFIG_KEY_LINK_FILTER_TEXT,
     CONFIG_KEY_LINK_TEXT,
     CONFIG_KEY_PASSWORD,
     CONFIG_KEY_PLATFORM,
@@ -39,6 +40,7 @@ def main() -> None:
         platform_email=config[CONFIG_KEY_PLATFORM_EMAIL],
         platform_password=config[CONFIG_KEY_PLATFORM_PASSWORD],
         subject=config[CONFIG_KEY_EMAIL_SUBJECT],
+        link_filter_text=config.get(CONFIG_KEY_LINK_FILTER_TEXT),
         link_text=config.get(CONFIG_KEY_LINK_TEXT),
     )
     scanner.start()

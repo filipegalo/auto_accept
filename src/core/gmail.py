@@ -273,6 +273,59 @@ class GmailHandler:
 
         return unique_urls
 
+    def extract_links_with_text(self, body: str) -> list[tuple[str, str]]:
+        """Extract URLs and their associated text from email body.
+
+        For HTML emails, extracts text from <a> tags.
+        For plain text, tries to find nearby text context for URLs.
+
+        Args:
+            body: Email body text (HTML or plain text)
+
+        Returns:
+            List of tuples (url, link_text) found in the body
+        """
+        if not body:
+            return []
+
+        # Clean up quoted-printable encoding
+        cleaned_body = body.replace("=\n", "").replace("=\r\n", "")
+
+        links_with_text: list[tuple[str, str]] = []
+
+        # Try to extract HTML anchor tags with their text
+        # Pattern: <a href="url">text</a> or <a href='url'>text</a>
+        html_link_pattern = r'<a\s+(?:[^>]*?\s+)?href=["\']([^"\']+)["\'][^>]*>([^<]+)</a>'
+        html_matches = re.finditer(html_link_pattern, cleaned_body, re.IGNORECASE)
+
+        seen_urls = set()
+
+        for match in html_matches:
+            url = match.group(1).strip()
+            link_text = match.group(2).strip()
+
+            # Validate URL
+            if url and isinstance(url, str) and url.startswith(("http://", "https://")):
+                # Remove trailing characters that might have been captured
+                while url and url[-1] in ">'))\"';,":
+                    url = url[:-1]
+
+                # Avoid duplicates
+                if url not in seen_urls:
+                    seen_urls.add(url)
+                    links_with_text.append((url, link_text))
+
+        # If no HTML links found, fall back to plain URL extraction
+        if not links_with_text:
+            urls = self.extract_links(body)
+            for url in urls:
+                if url not in seen_urls:
+                    seen_urls.add(url)
+                    # For plain URLs without context, use empty text
+                    links_with_text.append((url, ""))
+
+        return links_with_text
+
     def close(self) -> None:
         """Close IMAP connection."""
         if self.client:

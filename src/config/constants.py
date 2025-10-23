@@ -28,7 +28,8 @@ CONFIG_KEY_PLATFORM_EMAIL = "platform_email"
 CONFIG_KEY_PLATFORM_PASSWORD = "platform_password"
 # Email automation settings
 CONFIG_KEY_EMAIL_SUBJECT = "email_subject"
-CONFIG_KEY_LINK_TEXT = "link_text"
+CONFIG_KEY_LINK_FILTER_TEXT = "link_filter_text"  # Filter which links to open by their text
+CONFIG_KEY_LINK_TEXT = "link_text"  # Text of button to click on opened page
 
 # Supported platforms
 SUPPORTED_PLATFORMS = ["smartcat"]
