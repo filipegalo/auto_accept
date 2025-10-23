@@ -4,6 +4,8 @@ Features:
 - Real-time Gmail inbox monitoring
 - Automated browser link opening
 - Smart element clicking with Vue.js support
+- Encrypted credential storage with AES-128 encryption
+- URL validation preventing malicious navigation and SSRF attacks
 """
 
 from src.config import (
