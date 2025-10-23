@@ -192,11 +192,11 @@ jobs:
           sha256sum auto-accept-windows.exe > auto-accept-windows.exe.sha256
           sha256sum auto-accept-macos > auto-accept-macos.sha256
 
-      - name: Create Release with GitHub CLI
+      - name: Upload artifacts to release
         run: |
-          gh release create ${{ needs.release.outputs.tag }} \
-            --title "Release ${{ needs.release.outputs.tag }}" \
-            --generate-notes \
+          # Check if release already exists (created by semantic-release)
+          # If it does, just upload artifacts to it
+          gh release upload ${{ needs.release.outputs.tag }} \
             release/auto-accept-windows.exe \
             release/auto-accept-windows.exe.sha256 \
             release/auto-accept-macos \
