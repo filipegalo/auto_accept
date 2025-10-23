@@ -1,6 +1,6 @@
 [project]
 name = "auto-accept"
-version = "1.0.0"
+version = "1.1.0"
 description = "Automated email scanning and browser automation tool with Smartcat login support"
 requires-python = ">=3.11"
 authors = [{name = "Auto-Accept Contributors"}]
@@ -58,7 +58,7 @@ addopts = "--cov=src --cov-report=html --cov-report=term-missing"
 [tool.semantic_release]
 version_variable = "pyproject.toml:version"
 version_pattern = "version = \"{version}\""
-build_command = "false"
+build_command = "true"
 upload_to_release = false
 major_on_zero = false
 
