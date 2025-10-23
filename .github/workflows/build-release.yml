@@ -99,6 +99,8 @@ jobs:
     needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
     name: Create Release
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -139,5 +141,4 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
