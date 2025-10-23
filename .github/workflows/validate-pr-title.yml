@@ -1,0 +1,36 @@
+name: Validate PR Title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  validate-title:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+
+    steps:
+      - name: Validate PR title format
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+
+          # Check if title matches conventional commit format
+          # Format: type(scope)?: description
+          # Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build
+          if [[ $PR_TITLE =~ ^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?: .+ ]]; then
+            echo "✅ PR title follows conventional commit format"
+            exit 0
+          else
+            echo "❌ PR title does not follow conventional commit format"
+            echo ""
+            echo "Expected format: type(scope)?: description"
+            echo "Examples:"
+            echo "  - feat: add new feature"
+            echo "  - feat(auth): add login validation"
+            echo "  - fix: resolve bug in scanner"
+            echo "  - docs: update README"
+            echo ""
+            echo "Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build"
+            exit 1
+          fi
