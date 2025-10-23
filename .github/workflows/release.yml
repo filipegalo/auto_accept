@@ -1,4 +1,4 @@
-name: Semantic Release & Build
+name: Release
 
 on:
   push:
@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     concurrency: release
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.semantic.outputs.version }}
+      tag: ${{ steps.semantic.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v4
@@ -42,21 +42,23 @@ jobs:
           git config user.email "semantic-release[bot]@users.noreply.github.com"
 
       - name: Run semantic release
-        id: version
+        id: semantic
         run: |
-          # First, detect and apply the new version
-          echo "Running semantic-release version..."
-          uv run semantic-release version 2>&1
+          # Run semantic-release (handles version bump, changelog, commit, tag, release)
+          uv run semantic-release publish 2>&1 || true
 
-          # Extract version from git tags
-          VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null)
-
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
-          echo "📦 Version: $VERSION"
-          echo "🏷️  Tag: $TAG"
+          # Extract version and tag from git
+          if git describe --tags --exact-match HEAD 2>/dev/null; then
+            TAG=$(git describe --tags --exact-match HEAD)
+            VERSION=$(echo "$TAG" | sed 's/^v//')
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "✅ Release created: $TAG (v$VERSION)"
+          else
+            echo "version=" >> $GITHUB_OUTPUT
+            echo "tag=" >> $GITHUB_OUTPUT
+            echo "ℹ️  No release needed - no version changes detected"
+          fi
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 
@@ -154,52 +156,41 @@ jobs:
           name: auto-accept-macos
           path: dist/auto-accept
 
-  publish:
+  upload-artifacts:
     needs: [release, build-windows, build-macos]
     if: needs.release.outputs.tag != ''
     runs-on: ubuntu-latest
-    name: Create Release
-    permissions:
-      contents: write
+    name: Upload Artifacts to Release
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: auto-accept-windows
-          path: dist-windows
+          path: artifacts-windows
 
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
           name: auto-accept-macos
-          path: dist-macos
-
-      - name: Prepare artifacts
-        run: |
-          mkdir -p release
-          cp dist-windows/auto-accept.exe release/auto-accept-windows.exe
-          cp dist-macos/auto-accept release/auto-accept-macos
-          chmod +x release/auto-accept-macos
+          path: artifacts-macos
 
       - name: Create checksums
         run: |
-          cd release
-          sha256sum auto-accept-windows.exe > auto-accept-windows.exe.sha256
-          sha256sum auto-accept-macos > auto-accept-macos.sha256
+          mkdir -p checksums
+          sha256sum artifacts-windows/auto-accept.exe > checksums/auto-accept-windows.exe.sha256
+          sha256sum artifacts-macos/auto-accept > checksums/auto-accept-macos.sha256
+          cat checksums/*
 
       - name: Upload artifacts to release
         run: |
-          # Check if release already exists (created by semantic-release)
-          # If it does, just upload artifacts to it
           gh release upload ${{ needs.release.outputs.tag }} \
-            release/auto-accept-windows.exe \
-            release/auto-accept-windows.exe.sha256 \
-            release/auto-accept-macos \
-            release/auto-accept-macos.sha256
+            artifacts-windows/auto-accept.exe \
+            checksums/auto-accept-windows.exe.sha256 \
+            artifacts-macos/auto-accept \
+            checksums/auto-accept-macos.sha256 \
+            --clobber
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
