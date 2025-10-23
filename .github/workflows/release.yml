@@ -44,11 +44,11 @@ jobs:
       - name: Run semantic release
         id: version
         run: |
-          # Run semantic-release and capture output
-          OUTPUT=$(uv run semantic-release publish 2>&1)
-          echo "$OUTPUT"
+          # First, detect and apply the new version
+          echo "Running semantic-release version..."
+          uv run semantic-release version -v 2>&1
 
-          # Extract version from output or git tags
+          # Extract version from git tags
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
           TAG=$(git describe --tags --abbrev=0 2>/dev/null)
 
@@ -164,6 +164,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
