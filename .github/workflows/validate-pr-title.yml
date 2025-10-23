@@ -18,7 +18,7 @@ jobs:
           # Check if title matches conventional commit format
           # Format: type(scope)?: description
           # Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build
-          if [[ $PR_TITLE =~ ^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?: .+ ]]; then
+          if echo "$PR_TITLE" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\([^)]+\))?:'; then
             echo "✅ PR title follows conventional commit format"
             exit 0
           else
