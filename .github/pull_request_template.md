@@ -17,6 +17,7 @@ This automatically determines version bump on merge:
 - `BREAKING CHANGE:` → **MAJOR** version bump (breaking change)
 
 **Examples:**
+
 - `feat: add email filtering by sender` (1.0.0 → 1.1.0)
 - `fix: handle quoted-printable encoding` (1.0.0 → 1.0.1)
 - `feat!: change configuration format` (1.0.0 → 2.0.0)
@@ -30,32 +31,3 @@ This automatically determines version bump on merge:
 - [ ] Performance improvement
 - [ ] Code refactoring
 - [ ] Test addition
-
-## How Has This Been Tested?
-
-Please describe the tests that you ran to verify your changes. Provide instructions so we can reproduce.
-
-- [ ] Manual testing on Windows
-- [ ] Manual testing on Mac
-- [ ] Unit tests added/updated
-- [ ] Integration tests added/updated
-
-## Checklist
-
-- [ ] My code follows the code style of this project (black, ruff)
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests passed locally with my changes
-- [ ] I have updated CHANGELOG.md
-- [ ] Any dependent changes have been merged and published
-
-## Screenshots (if applicable)
-
-Add screenshots for UI changes.
-
-## Additional Context
-
-Add any other context about the pull request here.
