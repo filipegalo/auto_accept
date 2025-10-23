@@ -8,6 +8,7 @@ license = {text = "MIT"}
 dependencies = [
     "selenium>=4.15.0",
     "rich>=13.0.0",
+    "cryptography>=41.0.0",
 ]
 
 [dependency-groups]

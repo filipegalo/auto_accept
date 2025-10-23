@@ -1,5 +1,6 @@
 """Configuration initialization and management."""
 
+import getpass
 import json
 import os
 import sys
@@ -19,7 +20,7 @@ from ..config import (
     CONFIGS_DIR,
     SUPPORTED_PLATFORMS,
 )
-from . import ui
+from . import crypto, ui
 
 
 class ConfigManager:
@@ -63,7 +64,12 @@ class ConfigManager:
                 with open(config_path, "r") as f:
                     data = json.load(f)
                     if isinstance(data, dict):
-                        return data
+                        # Decrypt sensitive fields
+                        try:
+                            return crypto.CredentialCrypto.decrypt_config(data)
+                        except RuntimeError as e:
+                            ui.print_error(str(e))
+                            return None
                     return None
             except (json.JSONDecodeError, IOError):
                 return None
@@ -74,6 +80,8 @@ class ConfigManager:
     def save(config: dict, profile_name: str) -> None:
         """Save configuration to named profile with restricted permissions.
 
+        Sensitive credentials are encrypted before storing.
+
         Args:
             config: Configuration dictionary to save
             profile_name: Name of the profile to save as
@@ -81,8 +89,11 @@ class ConfigManager:
         ConfigManager._ensure_dirs()
         config_path = ConfigManager._get_config_path(profile_name)
 
+        # Encrypt sensitive fields before saving
+        encrypted_config = crypto.CredentialCrypto.encrypt_config(config)
+
         with open(config_path, "w") as f:
-            json.dump(config, f, indent=2)
+            json.dump(encrypted_config, f, indent=2)
         os.chmod(config_path, CONFIG_FILE_PERMISSIONS)
 
     @staticmethod
@@ -125,15 +136,25 @@ class ConfigManager:
 
     @staticmethod
     def _prompt_gmail_credentials() -> tuple[str, str]:
-        """Prompt for Gmail credentials."""
+        """Prompt for Gmail credentials.
+
+        Uses getpass for password masking and displays security warning.
+        """
         ui.print_subsection("Gmail Credentials (for email scanning)")
         email = input("Enter your Gmail email address: ").strip()
         if not email:
             raise ValueError("Gmail email cannot be empty")
-        password = input("Enter your Gmail password (or app-specific password): ").strip()
+
+        # Use getpass to mask password input
+        password = getpass.getpass("Enter your Gmail password (or app-specific password): ")
         if not password:
             raise ValueError("Gmail password cannot be empty")
-        ui.print_success("Gmail credentials saved")
+
+        ui.print_success("Gmail credentials saved (encrypted)")
+        ui.print_info(
+            "💡 Credentials are encrypted with a unique key stored on your computer",
+            indent=1,
+        )
         return email, password
 
     @staticmethod
@@ -157,15 +178,21 @@ class ConfigManager:
 
     @staticmethod
     def _prompt_platform_credentials(platform: str) -> tuple[str, str]:
-        """Prompt for platform credentials."""
+        """Prompt for platform credentials.
+
+        Uses getpass for password masking.
+        """
         ui.print_subsection(f"{platform.capitalize()} Credentials (for login)")
         platform_email = input(f"Enter your {platform.capitalize()} email address: ").strip()
         if not platform_email:
             raise ValueError(f"{platform.capitalize()} email cannot be empty")
-        platform_password = input(f"Enter your {platform.capitalize()} password: ").strip()
+
+        # Use getpass to mask password input
+        platform_password = getpass.getpass(f"Enter your {platform.capitalize()} password: ")
         if not platform_password:
             raise ValueError(f"{platform.capitalize()} password cannot be empty")
-        ui.print_success(f"{platform.capitalize()} credentials saved")
+
+        ui.print_success(f"{platform.capitalize()} credentials saved (encrypted)")
         return platform_email, platform_password
 
     @staticmethod
