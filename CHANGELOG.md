@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.2.1 (2025-10-23)
+
+### Bug Fixes
+
+- Upload artifacts to existing release instead of creating new one
+  ([`7fbca4f`](https://github.com/filipegalo/auto_accept/commit/7fbca4f832a5439ef7f89bfb7f30c4f33254cbfb))
+
+### Chores
+
+- Bump version to 1.2.0
+  ([`052506a`](https://github.com/filipegalo/auto_accept/commit/052506a36a900830a4e47bde5dbf3a5f8a87ad4c))
+
+
 ## v1.2.0 (2025-10-23)
 
 ### Bug Fixes
