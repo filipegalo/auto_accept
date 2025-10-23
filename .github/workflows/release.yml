@@ -46,7 +46,7 @@ jobs:
         run: |
           # First, detect and apply the new version
           echo "Running semantic-release version..."
-          uv run semantic-release version -v 2>&1
+          uv run semantic-release version 2>&1
 
           # Extract version from git tags
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
