@@ -23,9 +23,10 @@ from src.utils import ConfigManager, ui
 
 
 def main() -> None:
-    """Main entry point for auto-accept application.
+    """
+    Main function for the auto-accept application.
 
-    Initializes configuration and starts the email scanner.
+    Handles user greeting, configuration initialization, and starts the email scanner service.
     """
     ui.print_welcome()
 
