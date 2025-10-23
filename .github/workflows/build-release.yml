@@ -141,4 +141,4 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          token: ${{ github.token }}
+          token: ${{ secrets.RELEASE_TOKEN }}
