@@ -1,0 +1,63 @@
+[project]
+name = "auto-accept"
+version = "1.2.0"
+description = "Automated email scanning and browser automation tool with Smartcat login support"
+requires-python = ">=3.11"
+authors = [{name = "Auto-Accept Contributors"}]
+license = {text = "MIT"}
+dependencies = [
+    "selenium>=4.15.0",
+    "rich>=13.0.0",
+    "cryptography>=41.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.1",
+    "pyinstaller>=6.0.0",
+    "black>=24.0.0",
+    "mypy>=1.0.0",
+    "pytest>=7.0.0",
+    "pre-commit>=3.0.0",
+    "pytest-cov>=4.0.0",
+    "bandit>=1.7.5",
+    "safety>=3.0.0",
+    "trufflehog>=2.2.1",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "C",    # flake8-comprehensions
+    "B",    # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src --cov-report=html --cov-report=term-missing"
+
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

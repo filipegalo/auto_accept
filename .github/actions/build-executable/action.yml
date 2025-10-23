@@ -1,0 +1,70 @@
+name: "Build Executable"
+description: "Build Python executable using PyInstaller"
+inputs:
+  python-version:
+    description: "Python version to use"
+    required: true
+    default: "3.11"
+  platform:
+    description: "Platform to build for (windows, macos, linux)"
+    required: true
+  executable-name:
+    description: "Name of the executable"
+    required: true
+    default: "auto-accept"
+  artifact-name:
+    description: "Name of the artifact to upload"
+    required: true
+  output-path:
+    description: "Path to the built executable"
+    required: true
+  hidden-imports:
+    description: "Comma-separated list of hidden imports"
+    required: false
+    default: "selenium,rich,src,src.core,src.core.browser,src.core.gmail,src.core.scanner,src.config,src.config.constants,src.utils,src.utils.config_init,src.utils.tracker,src.utils.ui"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+      with:
+        version: latest
+
+    - name: Sync dependencies
+      shell: bash
+      run: uv sync
+
+    - name: Build executable
+      shell: bash
+      run: |
+        # Parse hidden imports
+        IFS=',' read -ra IMPORTS <<< "${{ inputs.hidden-imports }}"
+        HIDDEN_IMPORTS_ARGS=""
+        for import in "${IMPORTS[@]}"; do
+          HIDDEN_IMPORTS_ARGS="$HIDDEN_IMPORTS_ARGS --hidden-import=$import"
+        done
+
+        # Build command based on platform
+        if [ "${{ inputs.platform }}" = "windows" ]; then
+          uv run pyinstaller --onefile --console \
+            --name ${{ inputs.executable-name }} \
+            $HIDDEN_IMPORTS_ARGS \
+            main.py
+        else
+          uv run pyinstaller --onefile --console \
+            --name ${{ inputs.executable-name }} \
+            $HIDDEN_IMPORTS_ARGS \
+            main.py
+        fi
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.output-path }}
