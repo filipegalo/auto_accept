@@ -6,10 +6,13 @@ on:
       - main
     paths-ignore:
       - '.github/**'
+      - 'CHANGELOG.md'
+      - '*.md'
 
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   release:
@@ -18,23 +21,27 @@ jobs:
     outputs:
       version: ${{ steps.semantic.outputs.version }}
       tag: ${{ steps.semantic.outputs.tag }}
+      published: ${{ steps.semantic.outputs.published }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v2
-
-      - name: Sync dependencies
-        run: uv sync
+      - name: Install semantic-release
+        run: |
+          npm install -g semantic-release@latest
+          npm install -g @semantic-release/changelog@latest
+          npm install -g @semantic-release/git@latest
+          npm install -g @semantic-release/exec@latest
 
       - name: Configure git
         run: |
@@ -44,19 +51,21 @@ jobs:
       - name: Run semantic release
         id: semantic
         run: |
-          # Run semantic-release (handles version bump, changelog, commit, tag, release)
-          uv run semantic-release publish 2>&1 || true
+          # Run semantic-release
+          npx semantic-release --dry-run=false
 
-          # Extract version and tag from git
+          # Check if a release was created
           if git describe --tags --exact-match HEAD 2>/dev/null; then
             TAG=$(git describe --tags --exact-match HEAD)
             VERSION=$(echo "$TAG" | sed 's/^v//')
             echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "published=true" >> $GITHUB_OUTPUT
             echo "✅ Release created: $TAG (v$VERSION)"
           else
             echo "version=" >> $GITHUB_OUTPUT
             echo "tag=" >> $GITHUB_OUTPUT
+            echo "published=false" >> $GITHUB_OUTPUT
             echo "ℹ️  No release needed - no version changes detected"
           fi
         env:
@@ -64,106 +73,55 @@ jobs:
 
   build-windows:
     needs: release
-    if: needs.release.outputs.tag != ''
+    if: needs.release.outputs.published == 'true'
     runs-on: windows-latest
     name: Build Windows Executable
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           ref: ${{ needs.release.outputs.tag }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Build Windows executable
+        uses: ./.github/actions/build-executable
         with:
-          python-version: "3.11"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v2
-
-      - name: Sync dependencies
-        run: uv sync
-
-      - name: Build executable
-        run: |
-          uv run pyinstaller --onefile --console `
-            --name auto-accept `
-            --hidden-import=selenium `
-            --hidden-import=rich `
-            --hidden-import=src `
-            --hidden-import=src.core `
-            --hidden-import=src.core.browser `
-            --hidden-import=src.core.gmail `
-            --hidden-import=src.core.scanner `
-            --hidden-import=src.config `
-            --hidden-import=src.config.constants `
-            --hidden-import=src.utils `
-            --hidden-import=src.utils.config_init `
-            --hidden-import=src.utils.tracker `
-            --hidden-import=src.utils.ui `
-            main.py
-
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: auto-accept-windows
-          path: dist/auto-accept.exe
+          python-version: '3.11'
+          platform: 'windows'
+          executable-name: 'auto-accept'
+          artifact-name: 'auto-accept-windows'
+          output-path: 'dist/auto-accept.exe'
 
   build-macos:
     needs: release
-    if: needs.release.outputs.tag != ''
+    if: needs.release.outputs.published == 'true'
     runs-on: macos-latest
     name: Build macOS Executable
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           ref: ${{ needs.release.outputs.tag }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Build macOS executable
+        uses: ./.github/actions/build-executable
         with:
-          python-version: "3.11"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v2
-
-      - name: Sync dependencies
-        run: uv sync
-
-      - name: Build executable
-        run: |
-          uv run pyinstaller --onefile --console \
-            --name auto-accept \
-            --hidden-import=selenium \
-            --hidden-import=rich \
-            --hidden-import=src \
-            --hidden-import=src.core \
-            --hidden-import=src.core.browser \
-            --hidden-import=src.core.gmail \
-            --hidden-import=src.core.scanner \
-            --hidden-import=src.config \
-            --hidden-import=src.config.constants \
-            --hidden-import=src.utils \
-            --hidden-import=src.utils.config_init \
-            --hidden-import=src.utils.tracker \
-            --hidden-import=src.utils.ui \
-            main.py
-
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: auto-accept-macos
-          path: dist/auto-accept
+          python-version: '3.11'
+          platform: 'macos'
+          executable-name: 'auto-accept'
+          artifact-name: 'auto-accept-macos'
+          output-path: 'dist/auto-accept'
 
   upload-artifacts:
     needs: [release, build-windows, build-macos]
-    if: needs.release.outputs.tag != ''
+    if: needs.release.outputs.published == 'true'
     runs-on: ubuntu-latest
     name: Upload Artifacts to Release
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
@@ -182,6 +140,7 @@ jobs:
           mkdir -p checksums
           sha256sum artifacts-windows/auto-accept.exe > checksums/auto-accept-windows.exe.sha256
           sha256sum artifacts-macos/auto-accept > checksums/auto-accept-macos.sha256
+          echo "Checksums created:"
           cat checksums/*
 
       - name: Upload artifacts to release

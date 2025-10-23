@@ -1,0 +1,40 @@
+{
+    "branches": [
+        "main",
+        {
+            "name": "beta",
+            "prerelease": true
+        },
+        {
+            "name": "alpha",
+            "prerelease": true
+        }
+    ],
+    "plugins": [
+        "@semantic-release/commit-analyzer",
+        "@semantic-release/release-notes-generator",
+        [
+            "@semantic-release/changelog",
+            {
+                "changelogFile": "CHANGELOG.md"
+            }
+        ],
+        [
+            "@semantic-release/git",
+            {
+                "assets": [
+                    "CHANGELOG.md",
+                    "pyproject.toml"
+                ],
+                "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+            }
+        ],
+        [
+            "@semantic-release/exec",
+            {
+                "prepareCmd": "python -c \"import re; content = open('pyproject.toml').read(); new_content = re.sub(r'version = \\\"[^\\\"]+\\\"', 'version = \\\"${nextRelease.version}\\\"', content); open('pyproject.toml', 'w').write(new_content)\""
+            }
+        ],
+        "@semantic-release/github"
+    ]
+}

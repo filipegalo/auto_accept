@@ -1,10 +1,14 @@
 name: Lint & Type Check
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -12,9 +16,11 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.11', '3.12', '3.13']
+      fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -25,6 +31,12 @@ jobs:
         uses: astral-sh/setup-uv@v2
         with:
           version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
 
       - name: Sync dependencies
         run: uv sync
@@ -39,12 +51,22 @@ jobs:
         run: uv run mypy src --ignore-missing-imports
 
       - name: Run tests
-        run: uv run pytest tests -v --cov=src 2>/dev/null || echo "No tests directory yet"
+        run: uv run pytest tests -v --cov=src --cov-report=xml --cov-report=html 2>/dev/null || echo "No tests directory yet"
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.11'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
 
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -53,17 +75,47 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v2
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-3.11-${{ hashFiles('**/pyproject.toml') }}
 
       - name: Sync dependencies
         run: uv sync
 
-      - name: Check for security issues
-        run: uv run bandit -r src -f json -o bandit-report.json 2>/dev/null || true
+      - name: Check for security issues with bandit
+        run: |
+          uv run bandit -r src -f json -o bandit-report.json || true
+          if [ -f bandit-report.json ]; then
+            echo "Security scan completed"
+            cat bandit-report.json
+          fi
+
+      - name: Check for vulnerabilities with safety
+        run: |
+          uv run safety check --json --output safety-report.json || true
+          if [ -f safety-report.json ]; then
+            echo "Dependency vulnerability scan completed"
+            cat safety-report.json
+          fi
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+          retention-days: 30
 
   build-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -73,10 +125,26 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v2
 
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-3.11-${{ hashFiles('**/pyproject.toml') }}
+
+      - name: Sync dependencies
+        run: uv sync
+
       - name: Check Python compilation
         run: |
-          uv sync
           python3 -m py_compile main.py
           for file in $(find src -name "*.py"); do
             python3 -m py_compile "$file" || exit 1
           done
+
+      - name: Check import structure
+        run: |
+          python3 -c "import src; print('✅ Package imports successfully')"
+
+      - name: Validate pyproject.toml
+        run: |
+          uv run python -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb')); print('✅ pyproject.toml is valid')"

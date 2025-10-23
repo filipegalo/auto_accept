@@ -20,8 +20,9 @@ dev = [
     "pytest>=7.0.0",
     "pre-commit>=3.0.0",
     "pytest-cov>=4.0.0",
-    "python-semantic-release>=9.0.0",
     "bandit>=1.7.5",
+    "safety>=3.0.0",
+    "trufflehog>=2.2.1",
 ]
 
 [tool.black]
@@ -56,16 +57,6 @@ disallow_incomplete_defs = false
 testpaths = ["tests"]
 addopts = "--cov=src --cov-report=html --cov-report=term-missing"
 
-[tool.semantic_release]
-version_variable = "pyproject.toml:version"
-version_pattern = "version = \"{version}\""
-build_command = "true"
-upload_to_release = false
-major_on_zero = false
-
-[tool.semantic_release.branches.main]
-match = "main"
-prerelease = false
 
 [build-system]
 requires = ["setuptools>=61.0"]
