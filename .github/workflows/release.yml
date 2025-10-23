@@ -1,0 +1,201 @@
+name: Semantic Release & Build
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    concurrency: release
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Configure git
+        run: |
+          git config user.name "semantic-release[bot]"
+          git config user.email "semantic-release[bot]@users.noreply.github.com"
+
+      - name: Run semantic release
+        id: version
+        run: |
+          # Run semantic-release and capture output
+          OUTPUT=$(uv run semantic-release publish 2>&1)
+          echo "$OUTPUT"
+
+          # Extract version from output or git tags
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null)
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          echo "📦 Version: $VERSION"
+          echo "🏷️  Tag: $TAG"
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+  build-windows:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    runs-on: windows-latest
+    name: Build Windows Executable
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Build executable
+        run: |
+          uv run pyinstaller --onefile --console `
+            --name auto-accept `
+            --hidden-import=selenium `
+            --hidden-import=rich `
+            --hidden-import=src `
+            --hidden-import=src.core `
+            --hidden-import=src.core.browser `
+            --hidden-import=src.core.gmail `
+            --hidden-import=src.core.scanner `
+            --hidden-import=src.config `
+            --hidden-import=src.config.constants `
+            --hidden-import=src.utils `
+            --hidden-import=src.utils.config_init `
+            --hidden-import=src.utils.tracker `
+            --hidden-import=src.utils.ui `
+            main.py
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-accept-windows
+          path: dist/auto-accept.exe
+
+  build-macos:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    runs-on: macos-latest
+    name: Build macOS Executable
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Build executable
+        run: |
+          uv run pyinstaller --onefile --console \
+            --name auto-accept \
+            --hidden-import=selenium \
+            --hidden-import=rich \
+            --hidden-import=src \
+            --hidden-import=src.core \
+            --hidden-import=src.core.browser \
+            --hidden-import=src.core.gmail \
+            --hidden-import=src.core.scanner \
+            --hidden-import=src.config \
+            --hidden-import=src.config.constants \
+            --hidden-import=src.utils \
+            --hidden-import=src.utils.config_init \
+            --hidden-import=src.utils.tracker \
+            --hidden-import=src.utils.ui \
+            main.py
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auto-accept-macos
+          path: dist/auto-accept
+
+  publish:
+    needs: [release, build-windows, build-macos]
+    if: needs.release.outputs.tag != ''
+    runs-on: ubuntu-latest
+    name: Create Release
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: auto-accept-windows
+          path: dist-windows
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: auto-accept-macos
+          path: dist-macos
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p release
+          cp dist-windows/auto-accept.exe release/auto-accept-windows.exe
+          cp dist-macos/auto-accept release/auto-accept-macos
+          chmod +x release/auto-accept-macos
+
+      - name: Create checksums
+        run: |
+          cd release
+          sha256sum auto-accept-windows.exe > auto-accept-windows.exe.sha256
+          sha256sum auto-accept-macos > auto-accept-macos.sha256
+
+      - name: Create Release with GitHub CLI
+        run: |
+          gh release create ${{ needs.release.outputs.tag }} \
+            --title "Release ${{ needs.release.outputs.tag }}" \
+            --generate-notes \
+            release/auto-accept-windows.exe \
+            release/auto-accept-windows.exe.sha256 \
+            release/auto-accept-macos \
+            release/auto-accept-macos.sha256
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
