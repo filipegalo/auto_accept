@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.2.2 (2025-10-23)
+
+### Bug Fixes
+
+- Improve link text extraction for plain text emails
+  ([#3](https://github.com/filipegalo/auto_accept/pull/3),
+  [`accaee8`](https://github.com/filipegalo/auto_accept/commit/accaee8eb4f1d785a2258df5c441dcb6a0fbb4b9))
+
+
 ## v1.2.1 (2025-10-23)
 
 ### Bug Fixes
