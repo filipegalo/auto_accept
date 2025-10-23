@@ -130,15 +130,14 @@ jobs:
           sha256sum auto-accept-windows.exe > auto-accept-windows.exe.sha256
           sha256sum auto-accept-macos > auto-accept-macos.sha256
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            release/auto-accept-windows.exe
-            release/auto-accept-windows.exe.sha256
-            release/auto-accept-macos
+      - name: Create Release with GitHub CLI
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "Release ${{ github.ref_name }}" \
+            --generate-notes \
+            release/auto-accept-windows.exe \
+            release/auto-accept-windows.exe.sha256 \
+            release/auto-accept-macos \
             release/auto-accept-macos.sha256
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          token: ${{ secrets.RELEASE_TOKEN }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
