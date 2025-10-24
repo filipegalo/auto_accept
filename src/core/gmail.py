@@ -3,6 +3,8 @@
 import email
 import imaplib
 import re
+import socket
+import time
 from typing import Optional
 
 from ..config import GMAIL_IMAP_PORT, GMAIL_IMAP_SERVER
@@ -10,6 +12,11 @@ from ..config import GMAIL_IMAP_PORT, GMAIL_IMAP_SERVER
 
 class GmailHandler:
     """Handles Gmail operations using IMAP protocol."""
+
+    # Connection refresh interval in seconds (20 minutes)
+    CONNECTION_REFRESH_INTERVAL = 20 * 60
+    # Keep-alive check interval in seconds (5 minutes)
+    KEEP_ALIVE_INTERVAL = 5 * 60
 
     def __init__(self, email_address: str, password: str) -> None:
         """Initialize Gmail handler with credentials.
@@ -24,6 +31,8 @@ class GmailHandler:
         self.email_address = email_address
         self.password = password
         self.client: Optional[imaplib.IMAP4_SSL] = None
+        self._connection_time = 0.0
+        self._last_keep_alive = 0.0
         self._connect()
 
     def _connect(self) -> None:
@@ -35,14 +44,91 @@ class GmailHandler:
         try:
             self.client = imaplib.IMAP4_SSL(GMAIL_IMAP_SERVER, GMAIL_IMAP_PORT)
             self.client.login(self.email_address, self.password)
+            self._connection_time = time.time()
+            self._last_keep_alive = time.time()
             print("✓ Gmail IMAP connection successful")
         except imaplib.IMAP4.error as e:
             raise RuntimeError(f"Failed to connect to Gmail: {e}") from e
+
+    def _is_connection_stale(self) -> bool:
+        """Check if connection needs to be refreshed.
+
+        Returns:
+            True if connection is older than CONNECTION_REFRESH_INTERVAL
+        """
+        if self._connection_time == 0:
+            return False
+        return time.time() - self._connection_time > self.CONNECTION_REFRESH_INTERVAL
+
+    def _should_keep_alive(self) -> bool:
+        """Check if keep-alive ping is needed.
+
+        Returns:
+            True if time since last keep-alive exceeds KEEP_ALIVE_INTERVAL
+        """
+        return time.time() - self._last_keep_alive > self.KEEP_ALIVE_INTERVAL
+
+    def _keep_alive(self) -> bool:
+        """Send NOOP command to keep connection alive.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            if self.client:
+                self.client.noop()
+                self._last_keep_alive = time.time()
+                return True
+        except (socket.error, imaplib.IMAP4.error, EOFError):
+            # Connection is stale, will need to refresh
+            return False
+        return False
+
+    def refresh_connection(self) -> None:
+        """Refresh the Gmail connection by closing and reconnecting.
+
+        Useful for maintaining a healthy connection during long-running operations.
+        """
+        try:
+            if self.client:
+                try:
+                    self.client.logout()
+                except Exception:
+                    pass
+                self.client = None
+            self._connect()
+            print("✓ Connection refreshed")
+        except RuntimeError as e:
+            print(f"✗ Failed to refresh connection: {e}")
+            raise
+
+    def _ensure_connection(self) -> None:
+        """Ensure connection is healthy, refreshing if needed.
+
+        Automatically refreshes connection if it's stale or keep-alive fails.
+        """
+        # Check if connection needs refresh
+        if self._is_connection_stale():
+            print("↻ Refreshing stale connection...")
+            try:
+                self.refresh_connection()
+            except RuntimeError:
+                raise
+
+        # Check if keep-alive is needed
+        if self._should_keep_alive():
+            if not self._keep_alive():
+                print("↻ Keep-alive ping failed, refreshing connection...")
+                try:
+                    self.refresh_connection()
+                except RuntimeError:
+                    raise
 
     def search_emails(self, subject: str, unread_only: bool = True) -> list[dict]:
         """Search for emails with subject containing the given text.
 
         Uses IMAP SUBJECT search which does case-insensitive substring matching.
+        Automatically handles connection refresh and retry logic.
 
         Args:
             subject: Text to search for in subject line (substring match)
@@ -55,22 +141,58 @@ class GmailHandler:
             - sender: Email sender (str)
             - body: Email body content (str)
         """
-        try:
-            assert self.client is not None
-            self.client.select("INBOX")
+        max_retries = 3
+        retry_delay = 1  # seconds
 
-            # Build IMAP search criteria (SUBJECT does substring matching)
-            search_criteria = self._build_search_criteria(subject, unread_only)
-            status, message_ids = self.client.search(None, search_criteria)
+        for attempt in range(max_retries):
+            try:
+                # Ensure connection is healthy
+                self._ensure_connection()
 
-            if status != "OK":
+                assert self.client is not None
+                self.client.select("INBOX")
+
+                # Build IMAP search criteria (SUBJECT does substring matching)
+                search_criteria = self._build_search_criteria(subject, unread_only)
+                status, message_ids = self.client.search(None, search_criteria)
+
+                if status != "OK":
+                    return []
+
+                return self._fetch_messages(message_ids[0].split())
+
+            except (socket.error, EOFError) as e:
+                # Socket/SSL error - connection issue
+                if attempt < max_retries - 1:
+                    print(f"Connection error (attempt {attempt + 1}/{max_retries}): {e}")
+                    try:
+                        self.refresh_connection()
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    except RuntimeError:
+                        continue
+                else:
+                    print(f"Error searching emails after {max_retries} attempts: {e}")
+                    return []
+            except imaplib.IMAP4.error as e:
+                # IMAP protocol error
+                if attempt < max_retries - 1:
+                    print(f"IMAP error (attempt {attempt + 1}/{max_retries}): {e}")
+                    try:
+                        self.refresh_connection()
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                    except RuntimeError:
+                        continue
+                else:
+                    print(f"Error searching emails after {max_retries} attempts: {e}")
+                    return []
+            except Exception as e:
+                # Unexpected error
+                print(f"Unexpected error searching emails: {e}")
                 return []
 
-            return self._fetch_messages(message_ids[0].split())
-
-        except imaplib.IMAP4.error as e:
-            print(f"Error searching emails: {e}")
-            return []
+        return []
 
     def _build_search_criteria(self, subject: str, unread_only: bool) -> str:
         """Build IMAP search criteria string.
@@ -206,14 +328,51 @@ class GmailHandler:
         Returns:
             True if successful, False otherwise
         """
-        try:
-            assert self.client is not None
-            for msg_id in message_ids:
-                self.client.store(str(msg_id), "+FLAGS", "\\Seen")
-            return True
-        except imaplib.IMAP4.error as e:
-            print(f"Error marking emails as read: {e}")
-            return False
+        max_retries = 3
+        retry_delay = 1
+
+        for attempt in range(max_retries):
+            try:
+                # Ensure connection is healthy
+                self._ensure_connection()
+
+                assert self.client is not None
+                for msg_id in message_ids:
+                    self.client.store(str(msg_id), "+FLAGS", "\\Seen")
+                return True
+            except (socket.error, EOFError) as e:
+                if attempt < max_retries - 1:
+                    print(
+                        f"Connection error marking emails as read (attempt {attempt + 1}/{max_retries}): {e}"
+                    )
+                    try:
+                        self.refresh_connection()
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                    except RuntimeError:
+                        continue
+                else:
+                    print(f"Error marking emails as read after {max_retries} attempts: {e}")
+                    return False
+            except imaplib.IMAP4.error as e:
+                if attempt < max_retries - 1:
+                    print(
+                        f"IMAP error marking emails as read (attempt {attempt + 1}/{max_retries}): {e}"
+                    )
+                    try:
+                        self.refresh_connection()
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                    except RuntimeError:
+                        continue
+                else:
+                    print(f"Error marking emails as read after {max_retries} attempts: {e}")
+                    return False
+            except Exception as e:
+                print(f"Unexpected error marking emails as read: {e}")
+                return False
+
+        return False
 
     def extract_links(self, body: str) -> list[str]:
         """Extract all URLs from email body.
