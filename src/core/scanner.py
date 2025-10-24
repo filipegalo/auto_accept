@@ -187,7 +187,12 @@ class EmailScanner:
         Returns:
             List of newly processed email IDs
         """
-        messages = self.gmail.search_emails(self.subject, unread_only=True)
+        try:
+            messages = self.gmail.search_emails(self.subject, unread_only=True)
+        except RuntimeError as e:
+            ui.print_error(f"Failed to search emails: {e}")
+            return []
+
         processed_ids = []
 
         for message in messages:
