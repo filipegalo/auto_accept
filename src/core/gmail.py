@@ -265,7 +265,7 @@ class GmailHandler:
     def _extract_multipart_body(self, msg: email.message.Message) -> str:
         """Extract body from multipart message.
 
-        Prefers plain text, falls back to HTML.
+        Prefers HTML over plain text (HTML has better-structured links with anchor tags).
 
         Args:
             msg: Multipart email message
@@ -273,31 +273,32 @@ class GmailHandler:
         Returns:
             Extracted body text
         """
-        body = ""
+        plain_text = ""
+        html_body = ""
 
         for part in msg.walk():
             content_type = part.get_content_type()
 
-            # Prefer plain text
-            if content_type == "text/plain":
+            # Extract plain text
+            if content_type == "text/plain" and not plain_text:
                 try:
                     payload = part.get_payload(decode=True)
                     if isinstance(payload, bytes):
-                        body = payload.decode("utf-8")
-                        break
+                        plain_text = payload.decode("utf-8")
                 except Exception:
                     continue
 
-            # Fall back to HTML
-            elif content_type == "text/html" and not body:
+            # Extract HTML
+            elif content_type == "text/html" and not html_body:
                 try:
                     payload = part.get_payload(decode=True)
                     if isinstance(payload, bytes):
-                        body = payload.decode("utf-8")
+                        html_body = payload.decode("utf-8")
                 except Exception:
                     continue
 
-        return body
+        # Prefer HTML for link extraction (better structured), fall back to plain text
+        return html_body if html_body else plain_text
 
     def _extract_single_body(self, msg: email.message.Message) -> str:
         """Extract body from single-part message.
